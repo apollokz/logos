@@ -1,7 +1,7 @@
 # logos/delegator.py
 
 import re
-from z3 import Solver, Int, sat
+from z3 import Solver, Int, Real, sat, is_rational_value, is_int_value
 
 class Delegator:
     """
@@ -9,7 +9,7 @@ class Delegator:
     и делегирует формализуемые задачи символьному решателю Z3.
     """
     def _handle_scheduling(self, prompt: str) -> str:
-        """Обрабатывает задачи планирования."""
+        # ... (этот метод остается без изменений) ...
         try:
             A, B, C = Int('A'), Int('B'), Int('C')
             solver = Solver()
@@ -28,9 +28,18 @@ class Delegator:
         except Exception as e:
             return f"Ошибка при решении задачи планирования с Z3: {e}. [Проверка Логос: прервана.]"
 
+    def _format_model_value(self, val):
+        """Форматирует значение из модели Z3 в читаемый вид."""
+        if is_rational_value(val) and not is_int_value(val):
+            # Если это дробь, представляем ее как десятичное число с 4 знаками после запятой
+            return f"{val.as_decimal(4).replace('?', '')}"
+        else:
+            # Иначе (целое число) - просто возвращаем как есть
+            return f"{val}"
+
     def _handle_algebra(self, prompt: str) -> str:
         """
-        Обрабатывает алгебраические задачи с помощью динамического парсера.
+        Обрабатывает алгебраические задачи, поддерживая целые и вещественные числа.
         """
         try:
             solver = Solver()
@@ -39,12 +48,16 @@ class Delegator:
             if not var_names:
                 return "Не удалось найти переменные в уравнении. [Проверка Логос: ошибка парсинга.]"
 
-            z3_vars = {name: Int(name) for name in var_names}
+            # ИСПРАВЛЕНИЕ 1: Более надежная эвристика для определения типа
+            # Ищем все числа в промпте и проверяем, есть ли среди них числа с точкой.
+            all_numbers = re.findall(r'-?\d+\.\d+', prompt)
+            use_reals = len(all_numbers) > 0
+            VarType = Real if use_reals else Int
+
+            z3_vars = {name: VarType(name) for name in var_names}
             safe_scope = z3_vars.copy()
             safe_scope["__builtins__"] = None
 
-            # ИСПРАВЛЕНИЕ: Regex теперь использует явный, не "жадный" набор символов [a-zA-Z0-9...],
-            # чтобы избежать захвата кириллических слов.
             constraints = re.findall(r'([a-zA-Z0-9\s\.\+\-\*\/()]+==[a-zA-Z0-9\s\.\+\-\*\/()]+|[a-zA-Z]+\s*(?:>|<|>=|<=)\s*-?\d+\.?\d*)', prompt)
             
             if not constraints:
@@ -55,18 +68,22 @@ class Delegator:
 
             if solver.check() == sat:
                 model = solver.model()
-                solution = ", ".join([f"{var} = {model[z3_vars[var]]}" for var in sorted(z3_vars.keys())])
+                # ИСПРАВЛЕНИЕ 2: Используем функцию форматирования для красивого вывода
+                solution_parts = []
+                for var in sorted(z3_vars.keys()):
+                    val = model[z3_vars[var]]
+                    if val is not None:
+                         solution_parts.append(f"{var} = {self._format_model_value(val)}")
+
+                solution = ", ".join(solution_parts)
                 return f"Решение найдено: {solution}. [Проверено Логос: Решение удовлетворяет всем условиям.]"
             else:
-                return "Не удалось найти целочисленное решение для данного уравнения и ограничений. [Проверено Логос: Конфликт в условиях.]"
+                return "Не удалось найти решение для данного уравнения и ограничений. [Проверено Логос: Конфликт в условиях.]"
         except Exception as e:
             return f"Ошибка при решении алгебраической задачи с Z3: {e}. [Проверка Логос: прервана.]"
 
     def analyze_and_translate(self, prompt: str) -> str:
-        """
-        Анализирует промпт, и если задача подходит для Z3,
-        транслирует ее и решает.
-        """
+        # ... (этот метод остается без изменений) ...
         prompt_lower = prompt.lower()
         scheduling_keywords = ["запланировать", "встречи", "расписание"]
         algebra_keywords = ["реши", "уравнение", "где"]
