@@ -1,5 +1,6 @@
 # logos/delegator.py
 
+import re
 from z3 import Solver, Int, sat
 
 class Delegator:
@@ -28,21 +29,33 @@ class Delegator:
             return f"Ошибка при решении задачи планирования с Z3: {e}. [Проверка Логос: прервана.]"
 
     def _handle_algebra(self, prompt: str) -> str:
-        """Обрабатывает простые алгебраические задачи."""
-        # ПРИМЕЧАНИЕ: На данном этапе парсинг жестко закодирован под конкретный пример.
-        # В будущем здесь потребуется более сложный парсер (например, на регулярных выражениях).
+        """
+        Обрабатывает алгебраические задачи с помощью динамического парсера.
+        """
         try:
-            x, y = Int('x'), Int('y')
             solver = Solver()
+            var_names = set(re.findall(r'\b([a-zA-Z])\b', prompt))
             
-            # Извлекаем ограничения из промпта "Реши x + 2*y == 7, где x > 2 и y < 10"
-            solver.add(x + 2*y == 7)
-            solver.add(x > 2)
-            solver.add(y < 10)
+            if not var_names:
+                return "Не удалось найти переменные в уравнении. [Проверка Логос: ошибка парсинга.]"
+
+            z3_vars = {name: Int(name) for name in var_names}
+            safe_scope = z3_vars.copy()
+            safe_scope["__builtins__"] = None
+
+            # ИСПРАВЛЕНИЕ: Regex теперь использует явный, не "жадный" набор символов [a-zA-Z0-9...],
+            # чтобы избежать захвата кириллических слов.
+            constraints = re.findall(r'([a-zA-Z0-9\s\.\+\-\*\/()]+==[a-zA-Z0-9\s\.\+\-\*\/()]+|[a-zA-Z]+\s*(?:>|<|>=|<=)\s*-?\d+\.?\d*)', prompt)
+            
+            if not constraints:
+                return "Не удалось найти математические ограничения в промпте. [Проверка Логос: ошибка парсинга.]"
+
+            for c in constraints:
+                solver.add(eval(c.strip(), safe_scope))
 
             if solver.check() == sat:
                 model = solver.model()
-                solution = f"x = {model[x]}, y = {model[y]}"
+                solution = ", ".join([f"{var} = {model[z3_vars[var]]}" for var in sorted(z3_vars.keys())])
                 return f"Решение найдено: {solution}. [Проверено Логос: Решение удовлетворяет всем условиям.]"
             else:
                 return "Не удалось найти целочисленное решение для данного уравнения и ограничений. [Проверено Логос: Конфликт в условиях.]"
@@ -54,13 +67,13 @@ class Delegator:
         Анализирует промпт, и если задача подходит для Z3,
         транслирует ее и решает.
         """
-        # Эвристическая маршрутизация
+        prompt_lower = prompt.lower()
         scheduling_keywords = ["запланировать", "встречи", "расписание"]
-        algebra_keywords = ["реши", "уравнение", "x +", "x >"]
+        algebra_keywords = ["реши", "уравнение", "где"]
 
-        if any(keyword in prompt.lower() for keyword in scheduling_keywords):
+        if any(keyword in prompt_lower for keyword in scheduling_keywords):
             return self._handle_scheduling(prompt)
-        elif any(keyword in prompt.lower() for keyword in algebra_keywords):
+        elif any(keyword in prompt_lower for keyword in algebra_keywords):
             return self._handle_algebra(prompt)
         else:
             return "Задача не содержит формализуемых ограничений и не была передана решателю. [Проверка Логос: не выполнялась]"
