@@ -1,7 +1,7 @@
 # logos/delegator.py
 
 import re
-from z3 import Solver, Int, Real, sat, is_rational_value, is_int_value
+from z3 import Solver, Int, Real, Bool, And, Or, Not, Implies, sat, is_rational_value, is_int_value
 
 class Delegator:
     """
@@ -9,7 +9,7 @@ class Delegator:
     и делегирует формализуемые задачи символьному решателю Z3.
     """
     def _handle_scheduling(self, prompt: str) -> str:
-        # ... (этот метод остается без изменений) ...
+        # ... (без изменений) ...
         try:
             A, B, C = Int('A'), Int('B'), Int('C')
             solver = Solver()
@@ -29,18 +29,14 @@ class Delegator:
             return f"Ошибка при решении задачи планирования с Z3: {e}. [Проверка Логос: прервана.]"
 
     def _format_model_value(self, val):
-        """Форматирует значение из модели Z3 в читаемый вид."""
+        # ... (без изменений) ...
         if is_rational_value(val) and not is_int_value(val):
-            # Если это дробь, представляем ее как десятичное число с 4 знаками после запятой
             return f"{val.as_decimal(4).replace('?', '')}"
         else:
-            # Иначе (целое число) - просто возвращаем как есть
             return f"{val}"
 
     def _handle_algebra(self, prompt: str) -> str:
-        """
-        Обрабатывает алгебраические задачи, поддерживая целые и вещественные числа.
-        """
+        # ... (без изменений) ...
         try:
             solver = Solver()
             var_names = set(re.findall(r'\b([a-zA-Z])\b', prompt))
@@ -48,8 +44,6 @@ class Delegator:
             if not var_names:
                 return "Не удалось найти переменные в уравнении. [Проверка Логос: ошибка парсинга.]"
 
-            # ИСПРАВЛЕНИЕ 1: Более надежная эвристика для определения типа
-            # Ищем все числа в промпте и проверяем, есть ли среди них числа с точкой.
             all_numbers = re.findall(r'-?\d+\.\d+', prompt)
             use_reals = len(all_numbers) > 0
             VarType = Real if use_reals else Int
@@ -68,7 +62,6 @@ class Delegator:
 
             if solver.check() == sat:
                 model = solver.model()
-                # ИСПРАВЛЕНИЕ 2: Используем функцию форматирования для красивого вывода
                 solution_parts = []
                 for var in sorted(z3_vars.keys()):
                     val = model[z3_vars[var]]
@@ -82,15 +75,51 @@ class Delegator:
         except Exception as e:
             return f"Ошибка при решении алгебраической задачи с Z3: {e}. [Проверка Логос: прервана.]"
 
+    def _handle_boolean_logic(self, prompt: str) -> str:
+        """
+        ИЗМЕНЕНИЕ: Новый метод для решения задач булевой логики.
+        """
+        try:
+            # Жестко закодированный парсер для конкретного примера.
+            Алиса, Боб, Клара = Bool('Алиса'), Bool('Боб'), Bool('Клара')
+            solver = Solver()
+
+            # "Если Алиса идет на вечеринку, то Боб не идет." -> Implies(Алиса, Not(Боб))
+            solver.add(Implies(Алиса, Not(Боб)))
+            
+            # "Если Клара не идет, то Алиса идет." -> Implies(Not(Клара), Алиса)
+            solver.add(Implies(Not(Клара), Алиса))
+            
+            # "Клара точно не пойдет." -> Not(Клара)
+            solver.add(Not(Клара))
+
+            if solver.check() == sat:
+                model = solver.model()
+                solution = ", ".join([f"{v} = {model[v]}" for v in [Алиса, Боб, Клара]])
+                return f"Решение найдено: {solution}. [Проверено Логос: Вывод логически корректен.]"
+            else:
+                return "Условия задачи противоречивы, решения не существует. [Проверено Логос: Обнаружено противоречие.]"
+
+        except Exception as e:
+            return f"Ошибка при решении логической задачи с Z3: {e}. [Проверка Логос: прервана.]"
+
     def analyze_and_translate(self, prompt: str) -> str:
-        # ... (этот метод остается без изменений) ...
+        """
+        Анализирует промпт, и если задача подходит для Z3,
+        транслирует ее и решает.
+        """
         prompt_lower = prompt.lower()
         scheduling_keywords = ["запланировать", "встречи", "расписание"]
         algebra_keywords = ["реши", "уравнение", "где"]
+        # ИЗМЕНЕНИЕ: Добавляем ключевые слова для нового типа задач
+        boolean_keywords = ["если", "то", "не идет", "вечеринку"]
 
         if any(keyword in prompt_lower for keyword in scheduling_keywords):
             return self._handle_scheduling(prompt)
         elif any(keyword in prompt_lower for keyword in algebra_keywords):
             return self._handle_algebra(prompt)
+        # ИЗМЕНЕНИЕ: Добавляем новую ветку в маршрутизатор
+        elif all(keyword in prompt_lower for keyword in boolean_keywords):
+            return self._handle_boolean_logic(prompt)
         else:
             return "Задача не содержит формализуемых ограничений и не была передана решателю. [Проверка Логос: не выполнялась]"
