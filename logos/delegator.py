@@ -5,11 +5,7 @@ import json
 from z3 import Solver, Int, Real, Bool, And, Or, Not, Implies, sat, is_rational_value, is_int_value
 
 class Delegator:
-    """
-    "Делегатор" - мозг системы, который анализирует промпт
-    и делегирует формализуемые задачи символьному решателю Z3.
-    """
-    # ... методы _handle_scheduling, _format_model_value, _handle_algebra без изменений ...
+    # ... методы _handle_scheduling, _format_model_value, _handle_algebra, _handle_boolean_logic без изменений ...
     def _handle_scheduling(self, prompt: str) -> str:
         try:
             A, B, C = Int('A'), Int('B'), Int('C')
@@ -60,7 +56,7 @@ class Delegator:
                 return "Не удалось найти решение для данного уравнения и ограничений. [Проверено Логос: Конфликт в условиях.]"
         except Exception as e:
             return f"Ошибка при решении алгебраической задачи с Z3: {e}. [Проверка Логос: прервана.]"
-    
+
     def _handle_boolean_logic(self, prompt: str) -> str:
         try:
             Алиса, Боб, Клара = Bool('Алиса'), Bool('Боб'), Bool('Клара')
@@ -78,58 +74,47 @@ class Delegator:
             return f"Ошибка при решении логической задачи с Z3: {e}. [Проверка Логос: прервана.]"
 
     def _handle_rule_engine(self, prompt: str) -> str:
-        """
-        ИЗМЕНЕНИЕ: Новый метод, который загружает правила из JSON и проверяет по ним данные.
-        """
         try:
-            # 1. Извлекаем имя файла и данные из промпта
             match_filename = re.search(r"по набору правил '([\w\.]+)'", prompt)
-            if not match_filename: return "Не удалось найти имя файла правил в промпте. [Проверка Логос: ошибка парсинга.]"
+            if not match_filename: return "Не удалось найти имя файла правил. [Проверка Логос: ошибка парсинга.]"
             filename = match_filename.group(1)
 
             data_pairs = re.findall(r'(\w+)=([\d\.]+)', prompt)
-            if not data_pairs: return "Не удалось найти данные для проверки в промпте. [Проверка Логос: ошибка парсинга.]"
+            if not data_pairs: return "Не удалось найти данные для проверки. [Проверка Логос: ошибка парсинга.]"
             
-            # 2. Загружаем правила из файла
             with open(filename, 'r') as f:
-                rule_set = json.load(f)
-            rules = rule_set.get("rules", [])
+                rules = json.load(f).get("rules", [])
             
-            # 3. Готовим Z3
-            solver = Solver()
-            z3_vars = {key: Real(key) for key, val in data_pairs}
-            
-            # 4. Добавляем данные как утверждения
-            for key, val in data_pairs:
-                solver.add(z3_vars[key] == float(val))
-
-            # 5. Добавляем правила как проверяемые условия
             for rule in rules:
-                # Мы проверяем, что если все данные верны, то и правило должно выполняться
-                solver.add(eval(rule, {"__builtins__": None}, z3_vars))
+                solver = Solver()
+                z3_vars = {key: Real(key) if '.' in val else Int(key) for key, val in data_pairs}
+                
+                for key, val in data_pairs:
+                    solver.add(z3_vars[key] == (float(val) if '.' in val else int(val)))
+                
+                rule_expr = eval(rule, {"__builtins__": None}, z3_vars)
+                solver.add(Not(rule_expr))
 
-            if solver.check() == sat:
-                return f"Проверка пройдена. Все {len(rules)} правила из '{filename}' выполнены. [Проверено Логос: Соответствие подтверждено.]"
-            else:
-                return f"Проверка провалена. Данные нарушают одно или несколько правил из '{filename}'. [Проверено Логос: Обнаружено несоответствие.]"
+                if solver.check() == sat:
+                    model = solver.model()
+                    violated_var = re.search(r'\b([a-zA-Z_]+)\b', rule).group(1)
+                    actual_value = model[z3_vars[violated_var]]
+                    return (f"Проверка провалена. Нарушено правило '{rule}' "
+                            f"(фактическое значение: {violated_var} = {actual_value}). "
+                            f"[Проверено Логос: Обнаружено несоответствие.]")
+
+            return f"Проверка пройдена. Все {len(rules)} правила из '{filename}' выполнены. [Проверено Логос: Соответствие подтверждено.]"
         except FileNotFoundError:
             return f"Ошибка: файл правил '{filename}' не найден. [Проверка Логос: прервана.]"
         except Exception as e:
             return f"Ошибка при работе движка правил: {e}. [Проверка Логос: прервана.]"
 
     def analyze_and_translate(self, prompt: str) -> str:
-        """
-        Анализирует промпт, и если задача подходит для Z3,
-        транслирует ее и решает.
-        """
         prompt_lower = prompt.lower()
-        # ИЗМЕНЕНИЕ: Добавляем ключевые слова для Движка Правил
         rule_engine_keywords = ["проверь", "транзакцию", "правил", ".json"]
         scheduling_keywords = ["запланировать", "встречи", "расписание"]
         algebra_keywords = ["реши", "уравнение", "где"]
         boolean_keywords = ["если", "то", "не идет", "вечеринку"]
-        
-        # ИЗМЕНЕНИЕ: Движок правил имеет наивысший приоритет
         if all(keyword in prompt_lower for keyword in rule_engine_keywords):
             return self._handle_rule_engine(prompt)
         elif any(keyword in prompt_lower for keyword in scheduling_keywords):
