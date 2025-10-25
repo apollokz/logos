@@ -5,6 +5,10 @@ import json
 from z3 import Solver, Int, Real, Bool, And, Or, Not, Implies, sat, is_rational_value, is_int_value
 
 class Delegator:
+    def __init__(self, client):
+        """ИЗМЕНЕНИЕ: Принимаем экземпляр клиента для доступа к его данным."""
+        self.client = client
+    
     # ... методы _handle_scheduling, _format_model_value, _handle_algebra, _handle_boolean_logic без изменений ...
     def _handle_scheduling(self, prompt: str) -> str:
         try:
@@ -75,26 +79,28 @@ class Delegator:
 
     def _handle_rule_engine(self, prompt: str) -> str:
         try:
-            match_filename = re.search(r"по набору правил '([\w\.]+)'", prompt)
-            if not match_filename: return "Не удалось найти имя файла правил. [Проверка Логос: ошибка парсинга.]"
-            filename = match_filename.group(1)
+            # ИЗМЕНЕНИЕ: Ищем имя набора правил, а не имя файла
+            match_ruleset = re.search(r"по набору правил '(\w+)'", prompt)
+            if not match_ruleset: return "Не удалось найти имя набора правил в промпте. [Проверка Логос: ошибка парсинга.]"
+            ruleset_name = match_ruleset.group(1)
+
+            # ИЗМЕНЕНИЕ: Получаем путь к файлу из клиента
+            filepath = self.client.rulesets.get(ruleset_name)
+            if not filepath: return f"Ошибка: набор правил '{ruleset_name}' не был загружен. [Проверка Логос: прервана.]"
 
             data_pairs = re.findall(r'(\w+)=([\d\.]+)', prompt)
             if not data_pairs: return "Не удалось найти данные для проверки. [Проверка Логос: ошибка парсинга.]"
             
-            with open(filename, 'r') as f:
+            with open(filepath, 'r') as f:
                 rules = json.load(f).get("rules", [])
             
             for rule in rules:
                 solver = Solver()
                 z3_vars = {key: Real(key) if '.' in val else Int(key) for key, val in data_pairs}
-                
                 for key, val in data_pairs:
                     solver.add(z3_vars[key] == (float(val) if '.' in val else int(val)))
-                
                 rule_expr = eval(rule, {"__builtins__": None}, z3_vars)
                 solver.add(Not(rule_expr))
-
                 if solver.check() == sat:
                     model = solver.model()
                     violated_var = re.search(r'\b([a-zA-Z_]+)\b', rule).group(1)
@@ -103,18 +109,20 @@ class Delegator:
                             f"(фактическое значение: {violated_var} = {actual_value}). "
                             f"[Проверено Логос: Обнаружено несоответствие.]")
 
-            return f"Проверка пройдена. Все {len(rules)} правила из '{filename}' выполнены. [Проверено Логос: Соответствие подтверждено.]"
+            return f"Проверка пройдена. Все {len(rules)} правила из набора '{ruleset_name}' выполнены. [Проверено Логос: Соответствие подтверждено.]"
         except FileNotFoundError:
-            return f"Ошибка: файл правил '{filename}' не найден. [Проверка Логос: прервана.]"
+            return f"Ошибка: файл правил '{filepath}' не найден. [Проверка Логос: прервана.]"
         except Exception as e:
             return f"Ошибка при работе движка правил: {e}. [Проверка Логос: прервана.]"
 
     def analyze_and_translate(self, prompt: str) -> str:
+        # ... (маршрутизатор без изменений) ...
         prompt_lower = prompt.lower()
-        rule_engine_keywords = ["проверь", "транзакцию", "правил", ".json"]
+        rule_engine_keywords = ["проверь", "транзакцию", "правил"]
         scheduling_keywords = ["запланировать", "встречи", "расписание"]
         algebra_keywords = ["реши", "уравнение", "где"]
         boolean_keywords = ["если", "то", "не идет", "вечеринку"]
+        # ИЗМЕНЕНИЕ: Убираем .json из ключевых слов, т.к. теперь ищем имя набора правил
         if all(keyword in prompt_lower for keyword in rule_engine_keywords):
             return self._handle_rule_engine(prompt)
         elif any(keyword in prompt_lower for keyword in scheduling_keywords):
