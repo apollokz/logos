@@ -1,34 +1,38 @@
 # run_test.py
 
-# Импортируем наш класс Client из созданного пакета logos
 from logos.client import Client
+
+def run_test_scenario(logos_client, test_name, prompt):
+    """Функция для запуска одного тестового сценария."""
+    print(f"\n--- Запуск теста: '{test_name}' ---")
+    try:
+        response = logos_client.run(prompt)
+        print("--- Ответ от клиента Логос ---")
+        print(response)
+        print("------------------------------")
+    except Exception as e:
+        print(f"Ошибка при выполнении теста '{test_name}': {e}")
 
 def main():
     """
-    Основная функция для демонстрации работы клиента "Лogoс".
+    Основная функция для демонстрации работы клиента "Логос".
     """
-    print("--- Запуск тестового сценария для Логос MVP1 ---")
-
-    # Инициализируем клиент. На данном этапе api_key и provider - это заглушки.
+    print("--- Инициализация клиента Логос MVP1 ---")
     try:
         logos_client = Client(llm_provider="openai", api_key="DUMMY_API_KEY")
     except Exception as e:
         print(f"Ошибка при инициализации клиента: {e}")
         return
 
-    # Определяем тестовый промпт, как в плейбуке
-    test_prompt = "Мне нужно запланировать три встречи: A, B и C..."
+    # --- Тест 1: Задача на планирование (регрессионный тест) ---
+    scheduling_prompt = "Мне нужно запланировать три встречи: A, B и C..."
+    run_test_scenario(logos_client, "Планирование встреч", scheduling_prompt)
 
-    # Вызываем основной метод run
-    try:
-        response = logos_client.run(test_prompt)
-        print("\n--- Ответ от клиента Логос ---")
-        print(response)
-        print("------------------------------\n")
-    except Exception as e:
-        print(f"Ошибка при выполнении метода run: {e}")
+    # --- Тест 2: Новая задача на алгебру ---
+    algebra_prompt = "Реши x + 2*y == 7, где x > 2 и y < 10."
+    run_test_scenario(logos_client, "Решение уравнения", algebra_prompt)
 
-    print("--- Тестовый сценарий завершен ---")
+    print("\n--- Все тесты завершены ---")
 
 if __name__ == "__main__":
     main()
