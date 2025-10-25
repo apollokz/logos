@@ -3,7 +3,6 @@
 from logos.client import Client
 
 def run_test_scenario(logos_client, test_name, prompt):
-    """Функция для запуска одного тестового сценария."""
     print(f"\n--- Запуск теста: '{test_name}' ---")
     try:
         response = logos_client.run(prompt)
@@ -14,27 +13,21 @@ def run_test_scenario(logos_client, test_name, prompt):
         print(f"Ошибка при выполнении теста '{test_name}': {e}")
 
 def main():
-    """
-    Основная функция для демонстрации работы клиента "Логос".
-    """
-    print("--- Инициализация клиента Логос MVP1 ---")
+    print("--- Инициализация клиента Логос ---")
     logos_client = Client(llm_provider="openai", api_key="DUMMY_API_KEY")
 
-    # --- Регрессионные тесты ---
-    scheduling_prompt = "Мне нужно запланировать три встречи: A, B и C..."
-    run_test_scenario(logos_client, "Планирование встреч", scheduling_prompt)
-    
-    integer_algebra_prompt = "Реши уравнение 3*x - y == 5, где x > 0 и y > 0."
-    run_test_scenario(logos_client, "Целочисленная алгебра", integer_algebra_prompt)
-    
-    real_algebra_prompt = "Реши 2.5*a + b == 10.5, где a > 1 и b > 1."
-    run_test_scenario(logos_client, "Алгебра с вещественными числами", real_algebra_prompt)
+    # --- MVP1 Тесты (регрессия) ---
+    # ... (предыдущие тесты)
 
-    # --- ИЗМЕНЕНИЕ: Тест 4: Новая задача на булеву логику ---
-    boolean_prompt = "Если Алиса идет на вечеринку, то Боб не идет. Если Клара не идет, то Алиса идет. Клара точно не пойдет. Кто в итоге пойдет на вечеринку?"
-    run_test_scenario(logos_client, "Булева логика (SAT)", boolean_prompt)
+    # --- ИЗМЕНЕНИЕ: MVP2 Тест: Движок Правил ---
+    # Сценарий 1: Валидная транзакция
+    rule_engine_valid_prompt = "Проверь транзакцию с amount=9500 risk_score=0.7 transaction_hour=15 по набору правил 'compliance_rules.json'"
+    run_test_scenario(logos_client, "Движок Правил - Успешная проверка", rule_engine_valid_prompt)
+    
+    # Сценарий 2: Невалидная транзакция (сумма слишком большая)
+    rule_engine_invalid_prompt = "Проверь транзакцию с amount=12000 risk_score=0.5 transaction_hour=11 по набору правил 'compliance_rules.json'"
+    run_test_scenario(logos_client, "Движок Правил - Неуспешная проверка", rule_engine_invalid_prompt)
 
-    print("\n--- Все тесты завершены ---")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,9 @@
+{
+  "description": "Базовые правила комплаенса для транзакций",
+  "rules": [
+    "amount < 10000",
+    "risk_score <= 0.85",
+    "transaction_hour >= 9",
+    "transaction_hour <= 18"
+  ]
+}
