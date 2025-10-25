@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "logos-solver"
+version = "0.1.0"
+authors = [
+  { name="apollokz", email="author@example.com" },
+]
+description = "A symbolic coprocessor for LLMs that replaces probabilistic reasoning with verifiable, mathematical guarantees."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "z3-solver>=4.12",
+    "langchain>=0.1",
+    "llama-index>=0.10",
+    "langchain-openai>=0.1",
+]
