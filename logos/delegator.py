@@ -61,7 +61,9 @@ class Delegator:
 
     def _handle_boolean_logic(self, prompt: str) -> str:
         try:
-            var_names = set(re.findall(r'\b([А-ЯЁ][а-яё]+)\b', prompt))
+            var_candidates = set(re.findall(r'\b([А-ЯЁ][а-яё]+)\b', prompt))
+            var_names = {name for name in var_candidates if name.lower() not in ["если", "то", "не"]}
+            
             if not var_names:
                 return "Не удалось найти переменные (имена) в задаче. [Проверка Логос: ошибка парсинга.]"
 
@@ -71,10 +73,10 @@ class Delegator:
             processed_prompt = prompt
             var_pattern = f"({'|'.join(var_names)})"
 
-            processed_prompt = re.sub(f"{var_pattern}\\s+не\\s+идет", r"Not(\1)", processed_prompt)
-            processed_prompt = re.sub(f"{var_pattern}\\s+точно\\s+не\\s+пойдет", r"Not(\1)", processed_prompt)
-            processed_prompt = re.sub(f"{var_pattern}\\s+идет(\\s+на\\s+вечеринку)?", r"\1", processed_prompt)
-            
+            processed_prompt = re.sub(f"{var_pattern}\\s+не\\s+\\w+", r"Not(\1)", processed_prompt)
+            processed_prompt = re.sub(f"{var_pattern}\\s+точно\\s+не\\s+\\w+", r"Not(\1)", processed_prompt)
+            processed_prompt = re.sub(f"{var_pattern}\\s+\\w+(\\s+.*?)?(?=[,.]|\\bто\\b)", r"\1", processed_prompt)
+
             safe_scope = z3_vars.copy()
             safe_scope.update({'Implies': Implies, 'Not': Not})
             safe_scope["__builtins__"] = None
@@ -98,9 +100,6 @@ class Delegator:
             if solver.check() == sat:
                 model = solver.model()
                 solution_parts = []
-                # --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ ---
-                # Итерируемся по переменным в модели и используем правильный синтаксис model[var]
-                # Сортируем по имени для стабильного вывода
                 sorted_decls = sorted(model.decls(), key=lambda d: d.name())
                 for d in sorted_decls:
                     solution_parts.append(f"{d.name()} = {model[d]}")
@@ -163,6 +162,7 @@ class Delegator:
 
                 if solver.check() == sat:
                     model = solver.model()
+                    # --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ РЕГРЕССИИ ---
                     violated_var_name = rule.split()[0]
                     actual_value = model.eval(z3_vars[violated_var_name], model_completion=True)
                     solver.pop()
@@ -181,7 +181,7 @@ class Delegator:
         rule_engine_keywords = ["проверь", "транзакцию", "правил"]
         scheduling_keywords = ["запланировать", "встречи", "расписание"]
         algebra_keywords = ["реши", "уравнение", "где"]
-        boolean_keywords = ["если", "то", "не идет", "вечеринку"]
+        boolean_keywords = ["если", "то"]
         if all(keyword in prompt_lower for keyword in rule_engine_keywords):
             return self._handle_rule_engine(prompt)
         elif any(keyword in prompt_lower for keyword in scheduling_keywords):

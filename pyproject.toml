@@ -18,8 +18,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "z3-solver>=4.12",
-    "langchain>=0.1",
-    "llama-index>=0.10",
-    "langchain-openai>=0.1",
+    "z3-solver",
+    "langchain>=0.1.0,<0.2.0",
+    "langchain-core>=0.1.52,<0.2.0",
+    "langchain-openai>=0.1.0,<0.2.0",
+    # ИСПРАВЛЕНИЕ: Убираем неверное ограничение.
+    # Оставляем только 'langchain-google-genai', pip сам найдет совместимую версию.
+    "langchain-google-genai",
+    "langsmith<0.2.0"
 ]

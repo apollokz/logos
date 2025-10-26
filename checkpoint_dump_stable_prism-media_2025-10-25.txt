@@ -1,0 +1,58 @@
+==============================================================================
+Чекпойнт Проекта: Discord-Vosk-Bot (Node.js)
+Дата: 25 октября 2025 г.
+Состояние: Стабильное распознавание речи с prism-media
+==============================================================================
+
+
+--- START OF FILE .gitignore ---
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Other
+.DS_Store
+
+--- END OF FILE .gitignore ---
+
+
+--- START OF FILE .env ---
+
+--- END OF FILE .env ---
+
+
+--- START OF FILE package.json ---
+
+--- END OF FILE package.json ---
+
+
+--- START OF FILE docker-compose.yml ---
+
+--- END OF FILE docker-compose.yml ---
+
+
+--- START OF FILE Dockerfile ---
+
+--- END OF FILE Dockerfile ---
+
+
+--- START OF FILE index.js ---
+
+--- END OF FILE index.js ---
+
+
+--- START OF FILE deploy-commands.js ---
+
+--- END OF FILE deploy-commands.js ---
