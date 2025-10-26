@@ -1,3 +1,4 @@
+
 # tests/test_logos_core.py
 
 
@@ -7,6 +8,7 @@ from logos.client import Client
 
 @pytest.fixture
 def logos_client():
+    # ИСПРАВЛЕНИЕ: ll_provider -> llm_provider
     client = Client(llm_provider="openai", api_key="DUMMY_API_KEY")
     client.load_ruleset(name="compliance", filepath="compliance_rules.json")
     return client
@@ -50,25 +52,37 @@ def test_rule_engine_valid_natural_language(logos_client):
     prompt = "Проверь транзакцию на сумму 9500 с оценкой риска 0.7 и в час 15 по набору правил 'compliance'"
     response = logos_client.run(prompt)
     assert "Проверка пройдена" in response
+    assert "Все 4 правила" in response
 
 
 def test_rule_engine_invalid_natural_language(logos_client):
     prompt = "Проверь транзакцию на сумму 12000 с оценкой риска 0.5 и в час 11 по набору правил 'compliance'"
     response = logos_client.run(prompt)
     assert "Проверка провалена" in response
-    assert "Нарушено правило 'amount < 10000'" in response
-    assert "(фактическое значение: amount = 12000)" in response
+    assert "Обнаружено нарушений: 1" in response
+    assert "Правило 'amount < 10000': ПРОВАЛЕНО" in response
+    assert "Правило 'risk_score <= 0.85': ВЫПОЛНЕНО" in response
 
-# --- НОВЫЙ ТЕСТ ДЛЯ L2 ---
+
 @pytest.mark.parametrize("prompt_format", [
     "Проверь транзакцию с amount=9500, risk_score: 0.7 и час 15 по набору правил 'compliance'",
     "Проверь транзакцию где сумма 9500, риск=0.7, transaction_hour: 15 по набору правил 'compliance'",
     "Проверь транзакцию: amount:9500 risk_score=0.7 час=15 по набору правил 'compliance'"
 ])
 def test_rule_engine_flexible_formats(logos_client, prompt_format):
-    """
-    Проверяет, что NLP-парсер движка правил устойчив к разным форматам промпта.
-    Все эти варианты должны быть валидными.
-    """
     response = logos_client.run(prompt_format)
     assert "Проверка пройдена" in response
+
+
+def test_rule_engine_multiple_violations(logos_client):
+    """
+    Проверяет, что аудит корректно фиксирует несколько нарушений одновременно.
+    Нарушения: amount > 10000, transaction_hour > 18.
+    """
+    prompt = "Проверь транзакцию с amount=15000 и risk_score=0.5 в час 20 по набору правил 'compliance'"
+    response = logos_client.run(prompt)
+    assert "Проверка провалена" in response
+    assert "Обнаружено нарушений: 2" in response
+    assert "Правило 'amount < 10000': ПРОВАЛЕНО" in response
+    assert "Правило 'transaction_hour <= 18': ПРОВАЛЕНО" in response
+    assert "Правило 'risk_score <= 0.85': ВЫПОЛНЕНО" in response

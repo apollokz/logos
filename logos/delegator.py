@@ -135,9 +135,7 @@ class Delegator:
             filepath = self.client.rulesets.get(ruleset_name)
             if not filepath: return f"Ошибка: набор правил '{ruleset_name}' не загружен."
 
-            # --- УЛУЧШЕННАЯ ЛОГИКА ПАРСИНГА ---
             data_map = {}
-            # Каноническое имя -> список псевдонимов
             alias_map = {
                 'amount': ['amount', 'сумма', 'на сумму'],
                 'risk_score': ['risk_score', 'риск', 'с оценкой риска'],
@@ -145,12 +143,10 @@ class Delegator:
             }
 
             for canonical_name, aliases in alias_map.items():
-                # Создаем паттерн, который ищет любой из псевдонимов
                 alias_pattern = '|'.join(aliases)
-                # Ищем "псевдоним", затем необязательные разделители, затем число
                 match = re.search(f"({alias_pattern})\\s*[:=]?\\s*([\\d\\.]+)", prompt, flags=re.IGNORECASE)
                 if match:
-                    data_map[canonical_name] = match.group(2) # Группа 2 - это число
+                    data_map[canonical_name] = match.group(2)
             
             if not data_map: return "Не удалось найти данные для проверки в промпте."
             
@@ -162,6 +158,10 @@ class Delegator:
             for key, val in data_map.items():
                 solver.add(z3_vars[key] == (float(val) if '.' in val else int(val)))
 
+            # --- НОВАЯ ЛОГИКА: ПОЛНЫЙ АУДИТ ---
+            audit_results = []
+            violations = 0
+
             for rule in rules:
                 rule_expr = self._build_rule_expr(rule, z3_vars)
                 if rule_expr is None:
@@ -171,17 +171,25 @@ class Delegator:
                 solver.add(Not(rule_expr))
 
                 if solver.check() == sat:
+                    violations += 1
                     model = solver.model()
                     violated_var_name = rule.split()[0]
                     actual_value = model.eval(z3_vars[violated_var_name], model_completion=True)
-                    solver.pop()
-                    return (f"Проверка провалена. Нарушено правило '{rule}' "
-                            f"(фактическое значение: {violated_var_name} = {self._format_model_value(actual_value)}). "
-                            f"[Проверено Логос: Обнаружено несоответствие.]")
+                    audit_results.append(
+                        f"  - Правило '{rule}': ПРОВАЛЕНО (фактическое значение: {violated_var_name} = {self._format_model_value(actual_value)})"
+                    )
+                else:
+                    audit_results.append(f"  - Правило '{rule}': ВЫПОЛНЕНО")
                 
                 solver.pop()
 
-            return f"Проверка пройдена. Все применимые правила из набора '{ruleset_name}' выполнены. [Проверено Логос: Соответствие подтверждено.]"
+            if violations > 0:
+                header = f"Проверка провалена. Обнаружено нарушений: {violations}. [Проверено Логос: Обнаружено несоответствие.]"
+                report = "\n".join([header] + audit_results)
+                return report
+            else:
+                return f"Проверка пройдена. Все {len(audit_results)} правила из набора '{ruleset_name}' выполнены. [Проверено Логос: Соответствие подтверждено.]"
+
         except Exception as e:
             return f"Ошибка при работе движка правил: {e}. [Проверка Логос: прервана.]"
 
