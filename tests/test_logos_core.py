@@ -33,10 +33,17 @@ def test_real_algebra(logos_client):
 def test_boolean_logic(logos_client):
     prompt = "Если Алиса идет на вечеринку, то Боб не идет. Если Клара не идет, то Алиса идет. Клара точно не пойдет."
     response = logos_client.run(prompt)
-    # Проверяем, что все переменные присутствуют и имеют правильные значения
     assert "Алиса = True" in response
     assert "Боб = False" in response
     assert "Клара = False" in response
+
+
+def test_boolean_logic_dynamic(logos_client):
+    prompt = "Если Иван работает, то Мария отдыхает. Если Петр не отдыхает, то Иван работает. Петр точно не отдыхает."
+    response = logos_client.run(prompt)
+    assert "Иван = True" in response
+    assert "Мария = True" in response
+    assert "Петр = False" in response
 
 
 def test_rule_engine_valid_natural_language(logos_client):
@@ -53,14 +60,15 @@ def test_rule_engine_invalid_natural_language(logos_client):
     assert "(фактическое значение: amount = 12000)" in response
 
 # --- НОВЫЙ ТЕСТ ДЛЯ L2 ---
-def test_boolean_logic_dynamic(logos_client):
+@pytest.mark.parametrize("prompt_format", [
+    "Проверь транзакцию с amount=9500, risk_score: 0.7 и час 15 по набору правил 'compliance'",
+    "Проверь транзакцию где сумма 9500, риск=0.7, transaction_hour: 15 по набору правил 'compliance'",
+    "Проверь транзакцию: amount:9500 risk_score=0.7 час=15 по набору правил 'compliance'"
+])
+def test_rule_engine_flexible_formats(logos_client, prompt_format):
     """
-    Проверяет, что динамический парсер работает с новыми именами и условиями.
-    Логика: Если Иван работает, то Мария отдыхает. Если Петр не отдыхает, то Иван работает. Петр точно не отдыхает.
-    Ожидаемый результат: Петр=False, Иван=True, Мария=True.
+    Проверяет, что NLP-парсер движка правил устойчив к разным форматам промпта.
+    Все эти варианты должны быть валидными.
     """
-    prompt = "Если Иван работает, то Мария отдыхает. Если Петр не отдыхает, то Иван работает. Петр точно не отдыхает."
-    response = logos_client.run(prompt)
-    assert "Иван = True" in response
-    assert "Мария = True" in response
-    assert "Петр = False" in response
+    response = logos_client.run(prompt_format)
+    assert "Проверка пройдена" in response

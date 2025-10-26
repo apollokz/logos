@@ -135,12 +135,22 @@ class Delegator:
             filepath = self.client.rulesets.get(ruleset_name)
             if not filepath: return f"Ошибка: набор правил '{ruleset_name}' не загружен."
 
+            # --- УЛУЧШЕННАЯ ЛОГИКА ПАРСИНГА ---
             data_map = {}
-            keyword_map = {'на сумму': 'amount', 'с оценкой риска': 'risk_score', 'в час': 'transaction_hour'}
-            for phrase, var_name in keyword_map.items():
-                match = re.search(f"{phrase}\\s+([\\d\\.]+)", prompt)
+            # Каноническое имя -> список псевдонимов
+            alias_map = {
+                'amount': ['amount', 'сумма', 'на сумму'],
+                'risk_score': ['risk_score', 'риск', 'с оценкой риска'],
+                'transaction_hour': ['transaction_hour', 'час', 'в час']
+            }
+
+            for canonical_name, aliases in alias_map.items():
+                # Создаем паттерн, который ищет любой из псевдонимов
+                alias_pattern = '|'.join(aliases)
+                # Ищем "псевдоним", затем необязательные разделители, затем число
+                match = re.search(f"({alias_pattern})\\s*[:=]?\\s*([\\d\\.]+)", prompt, flags=re.IGNORECASE)
                 if match:
-                    data_map[var_name] = match.group(1)
+                    data_map[canonical_name] = match.group(2) # Группа 2 - это число
             
             if not data_map: return "Не удалось найти данные для проверки в промпте."
             
@@ -162,7 +172,6 @@ class Delegator:
 
                 if solver.check() == sat:
                     model = solver.model()
-                    # --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ РЕГРЕССИИ ---
                     violated_var_name = rule.split()[0]
                     actual_value = model.eval(z3_vars[violated_var_name], model_completion=True)
                     solver.pop()
