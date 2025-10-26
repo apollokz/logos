@@ -8,7 +8,6 @@ class Delegator:
     def __init__(self, client):
         self.client = client
     
-    # ... другие методы без изменений ...
     def _handle_scheduling(self, prompt: str) -> str:
         try:
             A, B, C = Int('A'), Int('B'), Int('C')
@@ -62,20 +61,57 @@ class Delegator:
 
     def _handle_boolean_logic(self, prompt: str) -> str:
         try:
-            Алиса, Боб, Клара = Bool('Алиса'), Bool('Боб'), Bool('Клара')
+            var_names = set(re.findall(r'\b([А-ЯЁ][а-яё]+)\b', prompt))
+            if not var_names:
+                return "Не удалось найти переменные (имена) в задаче. [Проверка Логос: ошибка парсинга.]"
+
             solver = Solver()
-            solver.add(Implies(Алиса, Not(Боб)))
-            solver.add(Implies(Not(Клара), Алиса))
-            solver.add(Not(Клара))
+            z3_vars = {name: Bool(name) for name in var_names}
+            
+            processed_prompt = prompt
+            var_pattern = f"({'|'.join(var_names)})"
+
+            processed_prompt = re.sub(f"{var_pattern}\\s+не\\s+идет", r"Not(\1)", processed_prompt)
+            processed_prompt = re.sub(f"{var_pattern}\\s+точно\\s+не\\s+пойдет", r"Not(\1)", processed_prompt)
+            processed_prompt = re.sub(f"{var_pattern}\\s+идет(\\s+на\\s+вечеринку)?", r"\1", processed_prompt)
+            
+            safe_scope = z3_vars.copy()
+            safe_scope.update({'Implies': Implies, 'Not': Not})
+            safe_scope["__builtins__"] = None
+
+            found_constraints = False
+            implications = re.findall(r'Если\s+(.*?),\s*то\s+(.*?)\.', processed_prompt, flags=re.IGNORECASE)
+            for cond, conclusion in implications:
+                solver.add(Implies(eval(cond.strip(), safe_scope), eval(conclusion.strip(), safe_scope)))
+                found_constraints = True
+
+            remaining_text = re.sub(r'Если\s+(.*?),\s*то\s+(.*?)\.', '', processed_prompt, flags=re.IGNORECASE)
+            facts = [f.strip() for f in remaining_text.split('.') if f.strip()]
+            for fact in facts:
+                if fact.startswith("Not(") and fact.endswith(")"):
+                    solver.add(eval(fact, safe_scope))
+                    found_constraints = True
+            
+            if not found_constraints:
+                return "Не удалось найти логические ограничения в промпте. [Проверка Логос: ошибка парсинга.]"
+
             if solver.check() == sat:
                 model = solver.model()
-                solution = ", ".join([f"{v} = {model[v]}" for v in [Алиса, Боб, Клара]])
+                solution_parts = []
+                # --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ ---
+                # Итерируемся по переменным в модели и используем правильный синтаксис model[var]
+                # Сортируем по имени для стабильного вывода
+                sorted_decls = sorted(model.decls(), key=lambda d: d.name())
+                for d in sorted_decls:
+                    solution_parts.append(f"{d.name()} = {model[d]}")
+
+                solution = ", ".join(solution_parts)
                 return f"Решение найдено: {solution}. [Проверено Логос: Вывод логически корректен.]"
             else:
                 return "Условия задачи противоречивы, решения не существует. [Проверено Логос: Обнаружено противоречие.]"
         except Exception as e:
             return f"Ошибка при решении логической задачи с Z3: {e}. [Проверка Логос: прервана.]"
-    
+
     def _build_rule_expr(self, rule_str, z3_vars):
         parts = rule_str.split()
         if len(parts) != 3: return None
@@ -101,7 +137,6 @@ class Delegator:
             if not filepath: return f"Ошибка: набор правил '{ruleset_name}' не загружен."
 
             data_map = {}
-            # ИСПРАВЛЕНИЕ: Добавляем 'на' в ключевые фразы, чтобы они были более уникальными
             keyword_map = {'на сумму': 'amount', 'с оценкой риска': 'risk_score', 'в час': 'transaction_hour'}
             for phrase, var_name in keyword_map.items():
                 match = re.search(f"{phrase}\\s+([\\d\\.]+)", prompt)
