@@ -4,3 +4,7 @@ langchain-core>=0.1.0
 langchain-openai>=0.1.0
 langchain-google-genai>=0.1.0
 pytest
+
+# Web Server
+fastapi
+uvicorn[standard]
