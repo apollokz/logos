@@ -8,3 +8,6 @@ pytest
 # Web Server
 fastapi
 uvicorn[standard]
+
+# Payments
+stripe
