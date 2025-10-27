@@ -6,7 +6,8 @@ from logos.client import Client
 # Мы создаем один глобальный экземпляр клиента, чтобы не инициализировать его при каждом вызове.
 # В более сложных приложениях здесь может использоваться более продвинутый паттерн.
 _logos_client = Client(llm_provider="offline", api_key="DUMMY")
-_logos_client.load_ruleset(name="compliance", filepath="compliance_rules.json")
+# ИЗМЕНЕНИЕ: Загружаем все наборы правил из директории
+_logos_client.load_ruleset("rulesets")
 
 @tool
 def logos_solver_tool(query: str) -> str:

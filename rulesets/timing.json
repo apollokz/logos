@@ -1,0 +1,7 @@
+{
+  "description": "Правила, касающиеся времени проведения транзакций",
+  "rules": [
+    "transaction_hour >= 9",
+    "transaction_hour <= 18"
+  ]
+}
