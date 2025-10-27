@@ -1,52 +1,64 @@
 # logos_api/main.py
 
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, Security, HTTPException
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
-from logos.client import Client # Импортируем наш клиент
+from starlette.status import HTTP_403_FORBIDDEN
+
+from logos.client import Client
+
+# --- Конфигурация Безопасности ---
+
+# Определяем, что API ключ будет передаваться в заголовке X-API-Key
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+# Наш секретный ключ. В реальном приложении он будет загружаться из переменных окружения.
+# Для простоты MVP2 мы его временно захардкодим.
+SECRET_API_KEY = "LOGOS_SECRET_MVP2_KEY"
+
+async def get_api_key(api_key: str = Security(api_key_header)):
+    """
+    Зависимость, которая проверяет предоставленный API ключ.
+    """
+    if api_key == SECRET_API_KEY:
+        return api_key
+    else:
+        raise HTTPException(
+            status_code=HTTP_403_FORBIDDEN, detail="Could not validate credentials"
+        )
 
 # --- Модели данных (API Контракт) ---
-# Используем Pydantic для валидации входящих и исходящих данных
 
 class VerificationRequest(BaseModel):
-    """Модель для входящего запроса на верификацию."""
     prompt: str
 
 class VerificationResponse(BaseModel):
-    """Модель для ответа после верификации."""
     result: str
 
 # --- Инициализация приложения и движка "Логос" ---
 
-# Создаем экземпляр приложения FastAPI
 app = FastAPI(
     title="Logos API",
     description="API для верификации данных с помощью символического решателя.",
     version="0.1.0",
 )
 
-# Создаем единый экземпляр клиента "Логос" при старте приложения
-# Это эффективно, так как нам не нужно пересоздавать его при каждом запросе
 logos_client = Client(llm_provider="offline", api_key="DUMMY")
-logos_client.load_ruleset("rulesets") # Загружаем все правила из директории
+logos_client.load_ruleset("rulesets")
 
 # --- API Эндпоинты ---
 
 @app.get("/", tags=["Status"])
 async def read_root():
-    """
-    Корневой эндпоинт для проверки работоспособности API.
-    """
     return {"status": "ok", "message": "Logos API is running successfully."}
 
-
 @app.post("/verify", response_model=VerificationResponse, tags=["Verification"])
-async def verify_prompt(request: VerificationRequest):
+async def verify_prompt(request: VerificationRequest, api_key: str = Security(get_api_key)):
     """
-    Основной эндпоинт для верификации.
+    Основной эндпоинт для верификации (ЗАЩИЩЕННЫЙ).
     Принимает промпт и возвращает результат от движка "Логос".
+    Требует наличия валидного заголовка X-API-Key.
     """
-    # Выполняем верификацию с помощью нашего движка
     verification_result = logos_client.run(request.prompt)
-    
-    # Возвращаем результат в формате, соответствующем нашей response_model
     return VerificationResponse(result=verification_result)
