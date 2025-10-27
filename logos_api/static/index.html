@@ -3,9 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <title>Logos Platform</title>
+    <!-- ИЗМЕНЕНИЕ: Подключаем библиотеку Blockly -->
+    <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+        #editor-container { border: 1px solid #ccc; width: 80%; height: 400px; margin-top: 20px; }
+    </style>
 </head>
 <body>
-    <h1>Logos MVP2 Frontend</h1>
-    <p>Frontend application will be loaded here.</p>
+    <h1>Визуальный Редактор Правил "Логос"</h1>
+    <p>Здесь будет размещен low-code редактор для создания наборов правил.</p>
+    
+    <div id="editor-container">
+        <!-- Сюда будет монтироваться библиотека редактора -->
+    </div>
+
+    <!-- Наш скрипт теперь должен идти после скриптов библиотеки -->
+    <script src="/app.js"></script>
 </body>
 </html>
