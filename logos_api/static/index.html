@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Logos Platform</title>
     <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+    <!-- ИЗМЕНЕНИЕ: Подключаем Stripe.js -->
+    <script src="https://js.stripe.com/v3/"></script>
     <style>
         body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
         .container { width: 80%; margin-top: 20px; }
@@ -17,7 +19,15 @@
 </head>
 <body>
 
+    <!-- ИЗМЕНЕНИЕ: Новый раздел для тарифов -->
     <div class="container">
+        <h1>Тарифы</h1>
+        <p>Pro Subscription - $20.00</p>
+        <button id="checkout-button">Купить подписку</button>
+    </div>
+
+    <div class="container">
+        <hr>
         <h1>Визуальный Редактор Правил "Логос"</h1>
         <div id="editor-container"></div>
         <button id="save-button">Сгенерировать и Показать JSON</button>
@@ -25,7 +35,6 @@
         <pre id="output"></pre>
     </div>
 
-    <!-- ИЗМЕНЕНИЕ: Новый раздел для Дашборда Аудита -->
     <div class="container">
         <hr>
         <h1>Дашборд Аудита</h1>
@@ -38,9 +47,7 @@
                     <th>Результат</th>
                 </tr>
             </thead>
-            <tbody id="history-table-body">
-                <!-- Сюда будут динамически добавляться строки -->
-            </tbody>
+            <tbody id="history-table-body"></tbody>
         </table>
     </div>
 
