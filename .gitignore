@@ -1,18 +1,4 @@
-# Virtual Environment
 .venv/
-venv/
-env/
-
-# Build artifacts
-dist/
-build/
-*.egg-info/
-
-# Python cache
+*.log
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Other
-.DS_Store

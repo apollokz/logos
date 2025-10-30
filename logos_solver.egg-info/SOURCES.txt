@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+logos/__init__.py
+logos/client.py
+logos/delegator.py
+logos/integrations/__init__.py
+logos/integrations/langchain.py
+logos_solver.egg-info/PKG-INFO
+logos_solver.egg-info/SOURCES.txt
+logos_solver.egg-info/dependency_links.txt
+logos_solver.egg-info/requires.txt
+logos_solver.egg-info/top_level.txt
+tests/test_integrations.py
+tests/test_logos_core.py

@@ -1,46 +1,88 @@
-# logos/client.py
-
+# logos/logos/client.py
 import os
 import json
-from pathlib import Path
-from .delegator import Delegator
+import re 
+from z3 import Solver, Real, And, Or, sat
 
 class Client:
-    """
-    Основной клиент для взаимодействия с системой "Логос".
-    """
-    def __init__(self, llm_provider: str, api_key: str):
-        self.llm_provider = llm_provider
-        self.api_key = api_key
+    def __init__(self, llm_provider="offline", api_key="DUMMY"):
         self.rulesets = {}
-        self.delegator = Delegator(self)
-        print("Клиент Логос и Делегатор успешно инициализированы.")
 
-    def load_ruleset(self, path: str):
+    def load_ruleset(self, directory="rulesets"):
+        for filename in os.listdir(directory):
+            if filename.endswith(".json"):
+                ruleset_name = filename.split(".")[0]
+                with open(os.path.join(directory, filename), "r") as f:
+                    self.rulesets[ruleset_name] = json.load(f)["rules"]
+
+    def _parse_prompt(self, prompt: str):
         """
-        Улучшенный метод для загрузки набора правил из файла или директории.
+        Используем надежный парсинг с помощью регулярных выражений.
+        Это будет находить все пары 'переменная=значение'.
         """
-        p = Path(path)
-        if not p.exists():
-            print(f"Ошибка: Путь '{path}' не существует.")
-            return
+        constraints = {}
+        pattern = re.compile(r"(\w+)\s*=\s*([0-9.]+)")
+        matches = pattern.findall(prompt)
 
-        if p.is_file() and p.suffix == '.json':
-            # Загрузка одного файла
-            ruleset_name = p.stem  # Имя файла без расширения
-            self.rulesets[ruleset_name] = str(p)
-            print(f"Набор правил '{ruleset_name}' из файла '{p}' успешно загружен.")
-        elif p.is_dir():
-            # Загрузка всех .json файлов из директории
-            count = 0
-            for json_file in p.glob('*.json'):
-                ruleset_name = json_file.stem
-                self.rulesets[ruleset_name] = str(json_file)
-                print(f"Набор правил '{ruleset_name}' из файла '{json_file}' успешно загружен.")
-                count += 1
-            print(f"Загружено {count} наборов правил из директории '{p}'.")
+        for name, value in matches:
+            try:
+                constraints[name] = float(value)
+            except ValueError:
+                pass
+        return constraints
 
-    def run(self, prompt: str) -> str:
-        print(f"Получен промпт: '{prompt}'")
-        response = self.delegator.analyze_and_translate(prompt)
-        return response
+    def run(self, prompt: str, ruleset_name="compliance"):
+        print(f"Получен промпт: '{prompt}'") 
+
+        constraints = self._parse_prompt(prompt)
+
+        # ИЗМЕНЕНИЕ 1: Всегда возвращаем словарь для консистентности API
+        if not constraints:
+            return {
+                "result": "no_op",
+                "details": "Задача не содержит формализуемых ограничений и не была передана решателю.",
+                "triggered_rules": []
+            }
+
+        s = Solver()
+        variables = {name: Real(name) for name in constraints.keys()}
+
+        for name, value in constraints.items():
+            s.add(variables[name] == value)
+
+        rules_to_check = self.rulesets.get(ruleset_name, [])
+        if not rules_to_check:
+            return {
+                "result": "error",
+                "details": f"Набор правил '{ruleset_name}' не найден.",
+                "triggered_rules": []
+            }
+
+        # ИЗМЕНЕНИЕ 2: Создаем список для хранения успешно примененных правил
+        triggered_rules = []
+        try:
+            for rule_str in rules_to_check:
+                rule_expr = eval(rule_str, {"__builtins__": None}, variables)
+                s.add(rule_expr)
+                # Если правило успешно добавлено, фиксируем его
+                triggered_rules.append(rule_str)
+        except Exception as e:
+            return {
+                "result": "error",
+                "details": f"Ошибка при парсинге правила: {e}.",
+                "triggered_rules": triggered_rules # Возвращаем даже частично сработавшие
+            }
+
+        # ИЗМЕНЕНИЕ 3: Возвращаем структурированный ответ
+        if s.check() == sat:
+            return {
+                "result": "approved",
+                "details": "Все правила успешно верифицированы.",
+                "triggered_rules": triggered_rules
+            }
+        else:
+            return {
+                "result": "denied",
+                "details": "Одно или несколько правил не были выполнены.",
+                "triggered_rules": triggered_rules
+            }
